@@ -30,7 +30,7 @@ int main()
     printf("Sample Count = %d\n", samp_count);
     sf_close(inFile);
 
-    int PAL_BW = 500000; //300Khz BW should do for a simple demod
+    int PAL_BW = 800000; //300Khz BW should do for a simple demod
 
     //Convert real array into complex, set Imaginary to zero
     printf("Converting to complex\n");
@@ -78,7 +78,7 @@ int main()
     printf("Mixing signals\n");
     unsigned int alignment2 = volk_get_alignment();
     lv_32fc_t *outputComplex2 = (lv_32fc_t *)volk_malloc(sizeof(lv_32fc_t) * samp_count, alignment2);
-    float sinAngle2 = 2.0 * 3.14159265359 * 500000 / samp_rate;
+    float sinAngle2 = 2.0 * 3.14159265359 * 400000 / samp_rate;
     lv_32fc_t phase_increment2 = lv_cmake(cos(sinAngle2), sin(sinAngle2));
     lv_32fc_t phase2 = lv_cmake(1.f, 0.0f);
     volk_32fc_s32fc_x2_rotator_32fc(outputComplex2, outputComplex, phase_increment2, &phase2, samp_count);
@@ -143,18 +143,52 @@ int main()
     free_bw_low_pass(AMlps);
 
 
+    //Amplify
+    for(int i = 0; i < newSampleCount; i++)
+    {
+        outputReal2[i] = outputReal2[i] * 4;
+    }
+
     //PAL Demod try
-    int sampleCounter = 0;
+    FILE *outfile = fopen("PALout.txt", "w");
+    long int sampleCounter = 0;
+    int PALLineLength = 197;
     while(1)
     {
         int highestValueLoc = 0;
-        int highestValue = 0;
-        for(int i = sampleCounter; i < sampleCounter + 100; i++)
+        float highestValue = 0;
+        float lowestValue = 10;
+        for(int i = sampleCounter; i < sampleCounter + PALLineLength; i++)
         {
-            highestValue = outputReal2[i];
+            if(outputReal2[i] > highestValue)
+            {
+                highestValue = outputReal2[i];
+                highestValueLoc = i;
+            }
+            if(outputReal2[i] < lowestValue)
+            {
+                lowestValue = outputReal2[i];
+            }
         }
-        for
+        //printf("PAL Sync at: %d Highest value: %f Lowest Value: %f\n", highestValueLoc, highestValue, lowestValue);
+
+        //Write line to file
+
+        for(int i = sampleCounter; i < sampleCounter + 210; i++)
+        {
+            fprintf(outfile, "%f,", outputReal2[i]);
+        }
+        fprintf(outfile, "%f\n", outputReal2[211]); // last pixel
+
+
+        sampleCounter = highestValueLoc + PALLineLength;
+        //break;
+        if(sampleCounter >= newSampleCount - 506000)
+        {
+            break;
+        }
     }
+    fclose(outfile);
 
 
 
